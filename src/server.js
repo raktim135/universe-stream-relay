@@ -29,9 +29,10 @@ app.get('/health', (_req, res) => {
 app.get('/api/tables', (_req, res) => {
   res.json({
     connected: universe.connected,
-    tables: config.tables.map((eventId) => ({
-      eventId,
-      hasData: !!universe.latest(eventId),
+    tables: config.games.map((g) => ({
+      eventId: g.eventId,
+      name: g.name,
+      hasData: !!universe.latest(g.eventId),
     })),
   });
 });

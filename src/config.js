@@ -29,11 +29,21 @@ export const config = {
     .map((s) => s.trim())
     .filter(Boolean),
 
-  // Tables to scrape
-  tables: (process.env.TABLES || '99.0030')
+  // Tables to scrape. Each entry is "eventId" or "eventId:Display Name".
+  // e.g. TABLES=99.0030:Lucky 7,99.0018:Dragon Tiger
+  games: (process.env.TABLES || '99.0030:Lucky 7')
     .split(',')
     .map((s) => s.trim())
-    .filter(Boolean),
+    .filter(Boolean)
+    .map((s) => {
+      const [eventId, ...rest] = s.split(':');
+      return { eventId: eventId.trim(), name: (rest.join(':').trim() || eventId.trim()) };
+    }),
+
+  // Convenience: just the eventIds.
+  get tables() {
+    return this.games.map((g) => g.eventId);
+  },
 
   corsOrigin: process.env.CORS_ORIGIN || '*',
 };
