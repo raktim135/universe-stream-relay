@@ -2,17 +2,22 @@
 //
 // The brand casino backend returns the CDN creds; the actual playback is a WebRTC
 // stream wrapped by the Universe player iframe. We hand the client a ready-to-embed
-// iframe URL. Creds carry a short-lived token, so we cache briefly and refresh.
+// iframe URL.
+//
+// IMPORTANT: the stream token is short-lived (it embeds an issue timestamp) and the
+// media server only accepts a FRESH token at WebRTC connect time — a token even ~2min
+// old is rejected. So we must NOT cache it; every /api/video call fetches a new token.
+// Cost is tiny: the page fetches this once per viewer load (real-player-like traffic).
 
 import { config } from './config.js';
 import { getToken } from './auth.js';
 import { apiHeaders } from './browser.js';
 
 const PLAYER_BASE = 'https://player.universestudio.games/index.html';
-const cache = new Map(); // eventId -> { url, expMs }
-// Cache long enough that we rarely hit the brand — a real player fetches the
-// stream once per session, not on a tight loop.
-const VIDEO_TTL_MS = 5 * 60 * 1000;
+// Tiny cache only to dedupe a burst of identical fetches (e.g. React StrictMode
+// double-invoke) — small enough that every real viewer still gets a fresh token.
+const cache = new Map(); // eventId -> { value, expMs }
+const VIDEO_TTL_MS = 3 * 1000;
 
 async function fetchStreamCreds(eventId) {
   const token = await getToken();
