@@ -10,9 +10,14 @@
 //              LUCKY CARD SUIT, LUCKY CARD ] with runners + runnersName }
 
 import { EventEmitter } from 'node:events';
+import dns from 'node:dns';
 import { io } from 'socket.io-client';
 import { config } from './config.js';
 import { getToken, invalidateToken } from './auth.js';
+
+const PROVIDER_HOST = (() => {
+  try { return new URL(config.socketUrl).hostname; } catch { return ''; }
+})();
 
 export class UniverseClient extends EventEmitter {
   constructor() {
@@ -20,6 +25,23 @@ export class UniverseClient extends EventEmitter {
     this.socket = null;
     this.state = new Map(); // eventId -> latest data object
     this.connected = false;
+    this.ipIndex = 0; // which pinned IP we're currently using (GeoDNS workaround)
+  }
+
+  // Custom DNS resolver: force the provider host to a pinned IP (GeoDNS is fenced
+  // to India). Everything else resolves normally.
+  makeLookup() {
+    if (!config.socketIps.length) return undefined;
+    const self = this;
+    return (hostname, options, cb) => {
+      if (hostname === PROVIDER_HOST) {
+        const ip = config.socketIps[self.ipIndex % config.socketIps.length];
+        const family = ip.includes(':') ? 6 : 4;
+        if (options && options.all) return cb(null, [{ address: ip, family }]);
+        return cb(null, ip, family);
+      }
+      return dns.lookup(hostname, options, cb);
+    };
   }
 
   latest(eventId) {
@@ -33,6 +55,10 @@ export class UniverseClient extends EventEmitter {
   start() {
     // Base host; socket.io appends `path` (/universecasino) itself.
     const base = config.socketUrl.replace(/\/$/, '');
+    const lookup = this.makeLookup();
+    if (config.socketIps.length) {
+      console.log(`[universe] pinning ${PROVIDER_HOST} -> ${config.socketIps.join(', ')} (GeoDNS workaround)`);
+    }
 
     this.socket = io(base, {
       path: config.socketPath,
@@ -47,6 +73,9 @@ export class UniverseClient extends EventEmitter {
           'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 ' +
           '(KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36',
       },
+      // Force the provider host to a pinned IP (GeoDNS is fenced to India). The ws
+      // transport forwards this lookup to the underlying https request.
+      ...(lookup ? { lookup, transportOptions: { websocket: { lookup } } } : {}),
       // Async auth: fetch a fresh token on every (re)connection.
       auth: (cb) => {
         getToken()
@@ -75,6 +104,11 @@ export class UniverseClient extends EventEmitter {
       // AUTH_REQUIRED / invalid token -> drop cached token so next attempt re-logs in.
       console.error('[universe] connect_error:', err.message);
       if (/auth/i.test(err.message)) invalidateToken();
+      // Transport-level failure (e.g. a stale pinned IP) -> rotate to the next IP.
+      else if (config.socketIps.length > 1 && /websocket|timeout|ECONN|network/i.test(err.message)) {
+        this.ipIndex = (this.ipIndex + 1) % config.socketIps.length;
+        console.warn(`[universe] rotating pinned IP -> ${config.socketIps[this.ipIndex]}`);
+      }
     });
 
     // The live feed. Both events carry the same shape.

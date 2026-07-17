@@ -19,8 +19,15 @@ export const config = {
   presetToken: process.env.UNIVERSE_TOKEN || '',
 
   // Provider socket
-  socketUrl: req('UNIVERSE_SOCKET_URL', 'wss://casino.unityexch.com/universecasino'),
-  socketPath: process.env.UNIVERSE_SOCKET_PATH || '/socket.io',
+  socketUrl: req('UNIVERSE_SOCKET_URL', 'wss://casino.unityexch.com'),
+  socketPath: process.env.UNIVERSE_SOCKET_PATH || '/universecasino',
+  // The provider domain uses GeoDNS — it resolves only from India. On a box in
+  // another region the servers still accept the connection, only DNS is fenced, so
+  // pin the IP(s) here (comma-separated for failover). Empty = normal DNS.
+  socketIps: (process.env.UNIVERSE_SOCKET_IP || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean),
 
   // Tables to scrape
   tables: (process.env.TABLES || '99.0030')
