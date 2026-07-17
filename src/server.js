@@ -18,6 +18,7 @@ import { config } from './config.js';
 import { universe } from './universeClient.js';
 import { normalize } from './normalize.js';
 import { getVideo } from './streaming.js';
+import { getHistory } from './history.js';
 
 const app = express();
 app.use(cors({ origin: config.corsOrigin }));
@@ -47,6 +48,14 @@ app.get('/api/video/:eventId', async (req, res) => {
   try {
     const video = await getVideo(req.params.eventId);
     res.json(video);
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
+app.get('/api/history/:eventId', async (req, res) => {
+  try {
+    res.json({ rounds: await getHistory(req.params.eventId) });
   } catch (err) {
     res.status(502).json({ error: err.message });
   }

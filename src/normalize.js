@@ -76,6 +76,7 @@ export function normalize(data) {
     roundId: data.roundId,
     eventName: data.eventName,
     status: data.status, // 'ONLINE' (betting open) | 'SUSPEND' (closed)
+    isMaintenance: !!data.isMaintenance,
     seconds: data.leftSec ?? data.seconds ?? null,
     winner,
     isSettled,
