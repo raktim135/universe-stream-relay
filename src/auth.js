@@ -5,6 +5,7 @@
 // we auto-login with the test creds and refresh a few minutes before expiry.
 
 import { config } from './config.js';
+import { apiHeaders } from './browser.js';
 
 let cached = { token: '', expMs: 0 };
 
@@ -18,23 +19,13 @@ function jwtExpMs(token) {
   }
 }
 
-const UA =
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 ' +
-  '(KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36';
-
 async function login() {
   // The site lowercases usernames, and its WAF rejects requests without a
   // browser-like User-Agent (returns 504/blocked otherwise).
   const origin = new URL(config.brandLoginUrl).origin;
   const res = await fetch(config.brandLoginUrl, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-      'User-Agent': UA,
-      Origin: origin,
-      Referer: `${origin}/`,
-    },
+    headers: apiHeaders(origin),
     body: JSON.stringify({
       userName: String(config.brandUsername).toLowerCase(),
       password: config.brandPassword,

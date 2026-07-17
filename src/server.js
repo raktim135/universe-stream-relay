@@ -9,6 +9,7 @@
 //     - GET /api/state/:eventId    -> latest normalized state for a table
 //     - GET /api/video/:eventId    -> { iframeUrl, creds } for the live video
 
+import './dnsPin.js'; // MUST be first: pins the provider host before any connection
 import http from 'node:http';
 import express from 'express';
 import cors from 'cors';
