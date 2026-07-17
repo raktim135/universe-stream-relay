@@ -7,6 +7,34 @@
 //   - `resultsArr` -> the settled WINNER/LOSER per runner for the current round.
 // We merge them: price/size/status from marketArr, result from resultsArr.
 
+// Drawn cards are in `cardsArr`, whose shape differs per game:
+//   Lucky 7:      { card: "SQ_" }
+//   Dragon Tiger: { DRAGON: { card_1: "S7_" }, TIGER: { card_1: "0" } }
+//   Andar Bahar:  { ANDAR_CARDS: ["S7_"], BAHAR_CARDS: [] }
+//   Teen Patti:   { PLAYER_A: { card_1, card_2, card_3 }, PLAYER_B: {...} }
+// A card code is "<suit><rank>_" (S/H/D/C + A/2..10/J/Q/K); "0" = not dealt yet.
+// We walk the structure generically and return a flat list of dealt cards.
+function extractCards(cardsArr) {
+  const out = [];
+  const walk = (v) => {
+    if (v == null) return;
+    if (typeof v === 'string') {
+      if (v && v !== '0' && /^[SHDC]/i.test(v)) out.push(parseCard(v));
+      return;
+    }
+    if (Array.isArray(v)) { v.forEach(walk); return; }
+    if (typeof v === 'object') { Object.values(v).forEach(walk); }
+  };
+  walk(cardsArr);
+  return out;
+}
+function parseCard(code) {
+  const suit = code[0].toUpperCase();
+  const rank = code.slice(1).replace(/_/g, '');
+  const symbol = { S: '♠', H: '♥', D: '♦', C: '♣' }[suit] || '';
+  return { rank, suit: symbol, red: suit === 'H' || suit === 'D', code };
+}
+
 export function normalize(data) {
   if (!data) return null;
 
@@ -51,6 +79,7 @@ export function normalize(data) {
     seconds: data.leftSec ?? data.seconds ?? null,
     winner,
     isSettled,
+    cards: extractCards(data.cardsArr), // dealt cards this round (empty during betting)
     markets,
     receivedAt: data.receivedAt,
   };
