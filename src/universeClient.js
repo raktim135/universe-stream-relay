@@ -71,6 +71,18 @@ export class UniverseClient extends EventEmitter {
       this.connected = false;
       console.warn('[universe] disconnected:', reason);
       this.emit('status', { connected: false, reason });
+      // socket.io does NOT auto-reconnect on a server-initiated disconnect (e.g. the
+      // provider kicks us when the token is invalidated by another login, or on their
+      // restart). Re-login and reconnect manually so the feed self-heals.
+      if (reason === 'io server disconnect') {
+        invalidateToken();
+        setTimeout(() => {
+          if (!this.connected) {
+            console.log('[universe] manual reconnect after server disconnect');
+            this.socket.connect();
+          }
+        }, 2000);
+      }
     });
 
     this.socket.on('connect_error', (err) => {
