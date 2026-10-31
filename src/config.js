@@ -29,6 +29,16 @@ function trimSlash(url) {
   return url.replace(/\/+$/, '');
 }
 
+// "99.0030=https://host/w/xxx 99.0018=https://host/w/yyy" -> Map (URLs have no spaces).
+function watchUrls() {
+  const out = new Map();
+  for (const entry of (process.env.TABLE_WATCH_URLS || '').split(/\s+/).filter(Boolean)) {
+    const eq = entry.indexOf('=');
+    if (eq > 0) out.set(entry.slice(0, eq).trim(), entry.slice(eq + 1).trim());
+  }
+  return out;
+}
+
 const production = process.env.NODE_ENV === 'production';
 
 export const config = {
@@ -62,6 +72,10 @@ export const config = {
     idleMs: Number(process.env.RELAY_IDLE_MS || 30000),
     // Tables kept live even with no viewers, so the first viewer joins instantly.
     prewarm: list('PREWARM_TABLES'),
+    // Testing: eventId -> pre-obtained watch page URL (see TABLE_WATCH_URLS in
+    // .env.example). Space-separated "eventId=url" pairs. Bypasses the brand's
+    // casinoGameWatchLink call for those tables.
+    watchUrls: watchUrls(),
   },
 
   viewer: {

@@ -20,28 +20,37 @@ function playerHeaders(pageUrl) {
 }
 
 export async function openWatch(eventId) {
-  const token = await getToken();
   const base = config.brandCasinoBase;
-  console.log(`[watch] ${eventId} requesting player link`);
-  const res = await fetch(
-    `${base}/casinoapp/exchange/users/streaming/casinoGameWatchLink`,
-    {
-      method: 'POST',
-      headers: {
-        ...apiHeaders(base),
-        Authorization: `Bearer ${token}`,
-        Referer: `${base}/`,
-        'sec-fetch-site': 'same-origin',
-      },
-      body: JSON.stringify({ streamId: eventId, timestamp: Date.now() }),
-      signal: AbortSignal.timeout(15000),
+
+  // Testing override: a watch URL obtained elsewhere (e.g. on a non-blocked IP
+  // via `npm run watch-url`) and pasted into TABLE_WATCH_URLS. Skips the
+  // casinoGameWatchLink call, which some IPs get 422 "viewer_ip_blocked" on.
+  let pageUrl = config.relay.watchUrls.get(eventId);
+  if (pageUrl) {
+    console.log(`[watch] ${eventId} using TABLE_WATCH_URLS override`);
+  } else {
+    const token = await getToken();
+    console.log(`[watch] ${eventId} requesting player link`);
+    const res = await fetch(
+      `${base}/casinoapp/exchange/users/streaming/casinoGameWatchLink`,
+      {
+        method: 'POST',
+        headers: {
+          ...apiHeaders(base),
+          Authorization: `Bearer ${token}`,
+          Referer: `${base}/`,
+          'sec-fetch-site': 'same-origin',
+        },
+        body: JSON.stringify({ streamId: eventId, timestamp: Date.now() }),
+        signal: AbortSignal.timeout(15000),
+      }
+    );
+    const json = await res.json().catch(() => ({}));
+    pageUrl = json?.data?.url;
+    if (!res.ok || !pageUrl) {
+      const reason = json?.meta?.message || json?.message || json?.error || '';
+      throw new Error(`watch link failed (${res.status}) for ${eventId}${reason ? `: ${reason}` : ''}`);
     }
-  );
-  const json = await res.json().catch(() => ({}));
-  const pageUrl = json?.data?.url;
-  if (!res.ok || !pageUrl) {
-    const reason = json?.meta?.message || json?.message || json?.error || '';
-    throw new Error(`watch link failed (${res.status}) for ${eventId}${reason ? `: ${reason}` : ''}`);
   }
   console.log(`[watch] ${eventId} fetching player page`);
 

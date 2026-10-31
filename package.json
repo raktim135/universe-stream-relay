@@ -9,7 +9,8 @@
     "start": "node --disable-warning=ExperimentalWarning --env-file=.env src/index.js",
     "dev": "node --disable-warning=ExperimentalWarning --env-file=.env --watch src/index.js",
     "mediamtx": "mediamtx mediamtx.yml",
-    "token": "node --env-file=.env scripts/sign-viewer-token.js"
+    "token": "node --env-file=.env scripts/sign-viewer-token.js",
+    "watch-url": "node --env-file=.env scripts/get-watch-url.mjs"
   },
   "engines": {
     "node": ">=22.13"
