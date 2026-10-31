@@ -1,0 +1,69 @@
+# MediaMTX config for the Universe stream relay.
+# Full reference: https://github.com/bluenviron/mediamtx/blob/main/mediamtx.yml
+#
+# The Node app publishes each table here over WHIP (localhost) at path "<eventId>";
+# viewers read it over WebRTC (WHEP) or LL-HLS. Any key can be overridden with an
+# env var: MTX_<KEY IN CAPS>, e.g. MTX_WEBRTCADDITIONALHOSTS=203.0.113.10
+
+logLevel: info
+
+# Every publish / read / API call is checked by the Node app
+# (src/mediamtx/authHook.js). Keep the port in sync with PORT in .env.
+authMethod: http
+authHTTPAddress: http://127.0.0.1:4010/internal/mediamtx/auth
+authHTTPExclude: []
+
+# Control API, used by the app to count viewers per table. Localhost only.
+api: true
+apiAddress: 127.0.0.1:9997
+
+# Prometheus metrics (viewers, bytes sent). Localhost only.
+metrics: true
+metricsAddress: 127.0.0.1:9998
+
+# Protocols we do not use.
+rtsp: false
+rtmp: false
+srt: false
+moq: false
+playback: false
+
+# ---- WebRTC: the main path for viewers ----
+webrtc: true
+webrtcAddress: :8889
+webrtcAllowOrigins: ['*']
+# nginx on the same box terminates HTTPS: take the viewer IP from X-Forwarded-For
+# only when the request comes from it.
+webrtcTrustedProxies: ['127.0.0.1', '::1']
+# Media ports. Open both UDP and TCP 8189 on the firewall. TCP is the
+# fallback for networks that block UDP, without paying for a TURN relay.
+webrtcLocalUDPAddress: :8189
+webrtcLocalTCPAddress: :8189
+# In production add the server's public IP so viewers can reach it:
+#   MTX_WEBRTCADDITIONALHOSTS=<public ip>
+webrtcAdditionalHosts: []
+webrtcICEServers2: []
+# The provider always sends audio packets (silence included), so both tracks
+# arrive quickly; video-only tables still start after this wait.
+webrtcTrackGatherTimeout: 2s
+
+# ---- LL-HLS: fallback when WebRTC cannot connect ----
+hls: true
+hlsAddress: :8888
+hlsAllowOrigins: ['*']
+hlsTrustedProxies: ['127.0.0.1', '::1']
+hlsVariant: lowLatency
+# The source sends a keyframe every 1s, so 1s segments need no re-encode.
+hlsSegmentDuration: 1s
+hlsPartDuration: 200ms
+hlsSegmentCount: 7
+hlsAlwaysRemux: false
+hlsMuxerCloseAfter: 30s
+
+pathDefaults:
+  source: publisher
+  # A restarted relay replaces its own stale session.
+  overridePublisher: true
+
+paths:
+  all_others:

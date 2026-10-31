@@ -1,10 +1,10 @@
 // Obtains and caches a brand JWT.
 //
-// The provider socket (wss://casino.unityexch.com/universecasino) and the brand
-// casino REST APIs both accept the same brand-issued JWT. It expires in ~5h, so
-// we auto-login with the test creds and refresh a few minutes before expiry.
+// The brand casino REST APIs (watch link for the dealer video) accept the
+// brand-issued JWT. It expires in ~5h, so we auto-login with the test creds and
+// refresh a few minutes before expiry.
 
-import { config } from './config.js';
+import { config } from '../config.js';
 import { apiHeaders } from './browser.js';
 
 let cached = { token: '', expMs: 0 };
