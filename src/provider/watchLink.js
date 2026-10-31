@@ -40,7 +40,8 @@ export async function openWatch(eventId) {
   const json = await res.json().catch(() => ({}));
   const pageUrl = json?.data?.url;
   if (!res.ok || !pageUrl) {
-    throw new Error(`watch link failed (${res.status}) for ${eventId}`);
+    const reason = json?.meta?.message || json?.message || json?.error || '';
+    throw new Error(`watch link failed (${res.status}) for ${eventId}${reason ? `: ${reason}` : ''}`);
   }
   console.log(`[watch] ${eventId} fetching player page`);
 

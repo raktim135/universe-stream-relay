@@ -144,7 +144,9 @@ const token = `${exp}.${sign(String(exp))}`;                       // any IP
 const bound = `${exp}.${Buffer.from(ip).toString('base64url')}.${sign(`${exp}.${ip}`)}`;
 ```
 
-`npm run token [-- <ttl seconds> [ip]]` prints one for testing.
+`npm run token [-- <ttl seconds> [ip]]` prints one for testing. Standalone samples to copy
+into the platform backend (no dependencies): [scripts/token-samples/](scripts/token-samples/)
+(`generate-token.mjs`, `generate-token.php`, `generate-token.sh`).
 
 ## Production
 
