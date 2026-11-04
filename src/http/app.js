@@ -11,6 +11,8 @@
 
 import express from 'express';
 import cors from 'cors';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { isIP } from 'node:net';
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { config } from '../config.js';
@@ -51,6 +53,21 @@ function frameAncestors() {
   const sources = domains.flatMap((d) => (d.startsWith('*.') ? [`https://${d}`] : [`https://${d}`, `https://*.${d}`]));
   if (!config.production) sources.push('http://localhost:*', 'http://127.0.0.1:*');
   return ["'self'", ...sources].join(' ');
+}
+
+// A cross-site iframe whose site is not in the embed list. A direct visit is allowed.
+function embedDenied(req) {
+  const dest = (req.get('sec-fetch-dest') || '').toLowerCase();
+  if (dest !== 'iframe' && dest !== 'frame' && dest !== 'embed' && dest !== 'object') return false;
+  const referer = req.get('referer') || '';
+  if (!referer) return false;
+  let host = '';
+  try { host = new URL(referer).hostname.toLowerCase(); } catch { return true; }
+  const self = String(req.hostname || '').toLowerCase();
+  if (host === self || (self && host.endsWith('.' + self))) return false;
+  const domains = getSettings().allowedEmbedDomains.map((d) => d.toLowerCase().replace(/^\*\./, ''));
+  if (!domains.length) return config.production;
+  return !domains.some((d) => host === d || host.endsWith('.' + d));
 }
 
 function watchOrigin() {
@@ -96,6 +113,7 @@ export function createApp() {
   app.use('/admin', adminRouter());
 
   app.use(cors({ origin: config.corsOrigin }));
+  app.use('/img', express.static(path.join(path.dirname(fileURLToPath(import.meta.url)), '../../img'), { maxAge: '1h' }));
 
   // Reject anything that is not a Universe table id before it can start a pull.
   app.param('eventId', (req, res, next, eventId) => {
@@ -142,10 +160,13 @@ export function createApp() {
   app.get('/watch/:eventId', (req, res) => {
     const { eventId } = req.params;
     const token = viewerToken(req);
-    if (viewerAllowed(req)) relays.want(eventId); // start opening while the page loads
+    res.set({ 'Referrer-Policy': 'no-referrer', 'Cache-Control': 'no-store' });
+    if (!viewerAllowed(req) || embedDenied(req)) {
+      return res.status(403).type('html').send(watchPage({ eventId, denied: true }));
+    }
+    relays.want(eventId); // start opening while the page loads
     const ancestors = frameAncestors();
     if (ancestors) res.set('Content-Security-Policy', `frame-ancestors ${ancestors}`);
-    res.set({ 'Referrer-Policy': 'no-referrer', 'Cache-Control': 'no-store' });
     const { whepUrl, hlsUrl } = streamUrls(eventId, token);
     const mode = req.query.mode === 'hls' ? 'hls' : 'webrtc';
     res.type('html').send(watchPage({ eventId, whepUrl, hlsUrl, token, mode }));

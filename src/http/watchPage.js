@@ -14,8 +14,10 @@ function inlineJson(value) {
   return JSON.stringify(value).replace(/</g, '\\u003c');
 }
 
-export function watchPage({ eventId, whepUrl, hlsUrl, token, mode }) {
-  const cfg = inlineJson({ whepUrl, hlsUrl, token, mode, hlsJs: HLS_JS });
+const DENIED = 'You are not authorize!';
+
+export function watchPage({ eventId, whepUrl, hlsUrl, token, mode, denied = false }) {
+  const cfg = inlineJson({ whepUrl, hlsUrl, token, mode, hlsJs: HLS_JS, denied });
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -23,17 +25,21 @@ export function watchPage({ eventId, whepUrl, hlsUrl, token, mode }) {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Live ${String(eventId).replace(/[^\w.-]/g, '')}</title>
   <style>
-    html, body { margin: 0; height: 100%; background: #000; color: #ddd; font: 14px/1.4 sans-serif; overflow: hidden; }
+    html, body { margin: 0; height: 100%; background: #000; color: #eee; font: 16px/1.4 system-ui, sans-serif; overflow: hidden; }
     video { width: 100%; height: 100%; background: #000; object-fit: contain; }
-    #msg { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center; background: rgba(0,0,0,.6); }
-    #msg[hidden], #sound[hidden] { display: none; }
-    #sound { position: absolute; right: 12px; bottom: 12px; padding: 8px 12px; border: 0; border-radius: 6px; background: rgba(0,0,0,.65); color: #fff; font: inherit; cursor: pointer; }
+    #loader, #denied { position: absolute; inset: 0; display: grid; place-items: center; background: #000; }
+    #loader[hidden], #denied[hidden], #sound[hidden] { display: none; }
+    #loader img { width: min(280px, 70vw); height: auto; background: #000; }
+    #denied .card { max-width: 420px; margin: 24px; padding: 28px 32px; text-align: center; border: 1px solid rgba(255,255,255,.14); border-radius: 16px; background: #141414; box-shadow: 0 16px 40px rgba(0,0,0,.45); }
+    #denied p { margin: 0; font-size: 20px; font-weight: 600; letter-spacing: .01em; }
+    #sound { position: absolute; z-index: 3; right: 12px; bottom: 12px; padding: 8px 14px; border: 0; border-radius: 6px; background: rgba(0,0,0,.72); color: #fff; font: inherit; cursor: pointer; }
   </style>
 </head>
 <body>
   <video id="v" autoplay muted playsinline></video>
-  <div id="msg">Opening the table…</div>
-  <button id="sound" hidden>🔇 Tap for sound</button>
+  <div id="loader"${denied ? ' hidden' : ''}><img src="/img/loader.gif" alt=""></div>
+  <div id="denied"${denied ? '' : ' hidden'}><div class="card"><p>${DENIED}</p></div></div>
+  <button id="sound" type="button" hidden>Unmute</button>
   <script>
   (() => {
     const CFG = ${cfg};
@@ -42,7 +48,8 @@ export function watchPage({ eventId, whepUrl, hlsUrl, token, mode }) {
     const MAX_WEBRTC_FAILURES = 3;
 
     const video = document.getElementById('v');
-    const msg = document.getElementById('msg');
+    const loader = document.getElementById('loader');
+    const denied = document.getElementById('denied');
     const sound = document.getElementById('sound');
     const auth = CFG.token ? { Authorization: 'Bearer ' + CFG.token } : {};
 
@@ -57,13 +64,25 @@ export function watchPage({ eventId, whepUrl, hlsUrl, token, mode }) {
     let openingSince = Date.now();
     let onScreen = true;
 
-    const show = (text) => { msg.textContent = text; msg.hidden = false; };
-    video.addEventListener('playing', () => { msg.hidden = true; });
+    const showLoader = () => { denied.hidden = true; loader.hidden = false; sound.hidden = true; };
+    const paintSound = () => { sound.textContent = video.muted ? 'Unmute' : 'Mute'; };
+    const refuse = () => {
+      teardown();
+      running = false;
+      clearTimeout(retryTimer);
+      loader.hidden = true;
+      sound.hidden = true;
+      denied.hidden = false;
+    };
+    video.addEventListener('playing', () => {
+      loader.hidden = true;
+      if (denied.hidden) { sound.hidden = false; paintSound(); }
+    });
 
     sound.addEventListener('click', () => {
-      video.muted = false;
-      video.play().catch(() => {});
-      sound.hidden = true;
+      video.muted = !video.muted;
+      if (!video.muted) video.play().catch(() => {});
+      paintSound();
     });
 
     function useHls() {
@@ -79,10 +98,10 @@ export function watchPage({ eventId, whepUrl, hlsUrl, token, mode }) {
       if (hls) { hls.destroy(); hls = null; }
     }
 
-    function retry(delay, text) {
+    function retry(delay) {
       teardown();
       running = false;
-      if (text) show(text);
+      showLoader();
       clearTimeout(retryTimer);
       retryTimer = setTimeout(start, delay);
     }
@@ -106,16 +125,15 @@ export function watchPage({ eventId, whepUrl, hlsUrl, token, mode }) {
       conn.ontrack = (e) => {
         stream.addTrack(e.track);
         if (video.srcObject !== stream) video.srcObject = stream;
-        if (e.track.kind === 'audio' && video.muted) sound.hidden = false;
       };
       conn.onconnectionstatechange = () => {
         if (pc !== conn) return;
         const s = conn.connectionState;
         if (s === 'connected') webrtcFailures = 0;
-        if (s === 'failed') { webrtcFailures += 1; retry(1000, 'Reconnecting…'); }
+        if (s === 'failed') { webrtcFailures += 1; retry(1000); }
         if (s === 'disconnected') {
           setTimeout(() => {
-            if (pc === conn && conn.connectionState === 'disconnected') retry(500, 'Reconnecting…');
+            if (pc === conn && conn.connectionState === 'disconnected') retry(500);
           }, 4000);
         }
       };
@@ -127,7 +145,7 @@ export function watchPage({ eventId, whepUrl, hlsUrl, token, mode }) {
         headers: { 'Content-Type': 'application/sdp', ...auth },
         body: conn.localDescription.sdp,
       });
-      if (res.status === 401) throw Object.assign(new Error('You are not allowed to watch this table.'), { fatal: true });
+      if (res.status === 401 || res.status === 403) throw Object.assign(new Error('denied'), { denied: true });
       if (res.status === 404 || res.status === 400) throw Object.assign(new Error('opening'), { opening: true });
       if (res.status !== 201) throw new Error('server answered ' + res.status);
       const location = res.headers.get('Location');
@@ -156,7 +174,10 @@ export function watchPage({ eventId, whepUrl, hlsUrl, token, mode }) {
       hls = new Hls({
         lowLatencyMode: true,
         backBufferLength: 10,
-        xhrSetup: (xhr) => { if (CFG.token) xhr.setRequestHeader('Authorization', 'Bearer ' + CFG.token); },
+        xhrSetup: (xhr) => {
+          if (CFG.token) xhr.setRequestHeader('Authorization', 'Bearer ' + CFG.token);
+          xhr.addEventListener('load', () => { if (xhr.status === 401 || xhr.status === 403) refuse(); });
+        },
       });
       hls.on(Hls.Events.ERROR, (_e, data) => {
         if (!data.fatal) return;
@@ -174,14 +195,15 @@ export function watchPage({ eventId, whepUrl, hlsUrl, token, mode }) {
         if (useHls()) await playHls();
         else await playWebRTC();
       } catch (err) {
-        if (err.fatal) { teardown(); running = false; show(err.message); return; }
+        if (err.denied) { refuse(); return; }
+        if (err.fatal) { teardown(); running = false; loader.hidden = true; denied.hidden = false; return; }
         if (err.opening) {
-          if (Date.now() - openingSince > OPEN_TIMEOUT_MS) { teardown(); running = false; show('The table did not open. Please try again later.'); return; }
+          if (Date.now() - openingSince > OPEN_TIMEOUT_MS) { teardown(); running = false; return; }
           retry(1000);
           return;
         }
         webrtcFailures += 1;
-        retry(2000, 'Reconnecting…');
+        retry(2000);
       }
     }
 
@@ -205,7 +227,7 @@ export function watchPage({ eventId, whepUrl, hlsUrl, token, mode }) {
       if (paused) {
         paused = false;
         openingSince = Date.now();
-        show('Resuming…');
+        showLoader();
         start();
       }
     }
@@ -218,7 +240,7 @@ export function watchPage({ eventId, whepUrl, hlsUrl, token, mode }) {
     }
     window.addEventListener('pagehide', teardown);
 
-    start();
+    if (!CFG.denied) start();
   })();
   </script>
 </body>
