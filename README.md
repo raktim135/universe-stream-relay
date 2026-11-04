@@ -81,7 +81,7 @@ The first start downloads the DB-IP Lite IP database (~12 MB) in the background.
 |---|---|
 | `GET /watch/:eventId` | Player page to embed in an `<iframe>` (`?token=`, `?mode=hls` to force HLS) |
 | `GET /api/video/:eventId` | `{ playUrl, whepUrl, hlsUrl }`, also starts opening the table |
-| `POST /api/watch-link` | Mint `{ url }` for one table, locked to one public IP. `Authorization: Bearer <WATCH_LINK_KEY>`, body `{ eventId, ip, ttl? }`. Off unless `WATCH_LINK_KEY` is set and `VIEWER_TOKEN_BIND_IP=true`. |
+| `POST /api/watch-link` | Mint `{ url }` for one table. `Authorization: Bearer <WATCH_LINK_KEY>`, body `{ eventId, ttl? }`. Add `ip` only when `VIEWER_TOKEN_BIND_IP=true` (the link then plays only from that public IP). Off unless `WATCH_LINK_KEY` is set. |
 | `GET /health` | `{ ok: true }` for uptime checks |
 
 Universe tables: 99.0030 Lucky 7 · 99.0018 Dragon Tiger · 99.0025 Andar Bahar ·

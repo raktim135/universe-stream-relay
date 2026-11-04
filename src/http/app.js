@@ -1,7 +1,7 @@
 // HTTP API for our clients, MediaMTX's auth hook and the admin area.
 //
 //   GET  /health                  -> { ok } (for uptime checks; details are in /admin)
-//   POST /api/watch-link          -> { url } for one table, locked to one IP
+//   POST /api/watch-link          -> { url } for one table (IP-locked only when VIEWER_TOKEN_BIND_IP=true)
 //   GET  /api/video/:eventId      -> { playUrl, whepUrl, hlsUrl } and starts the table
 //   GET  /watch/:eventId          -> ready-made player page (iframe it)
 //   POST /internal/mediamtx/auth  -> MediaMTX auth hook (localhost only)
@@ -151,8 +151,9 @@ export function createApp() {
 
   app.get('/health', (_req, res) => res.json({ ok: true }));
 
-  // The other app sends a table and the viewer's public IP. We return the
-  // watch URL. The key is not the viewer token secret.
+  // The other app sends a table. With VIEWER_TOKEN_BIND_IP=true it also sends
+  // the viewer's public IP and the link plays only from that address.
+  // The key is not the viewer token secret.
   app.post('/api/watch-link', express.json({ limit: '4kb' }), (req, res) => {
     const key = config.watchLink.apiKey;
     if (key.length < 16) return res.status(404).json({ error: 'watch links are disabled' });
@@ -161,22 +162,27 @@ export function createApp() {
     const b = createHash('sha256').update(presented).digest();
     if (!presented || !timingSafeEqual(a, b)) return res.status(401).json({ error: 'unauthorized' });
     if (!config.viewer.tokenSecret) return res.status(503).json({ error: 'viewer tokens are not configured' });
-    if (!config.viewer.bindIp) return res.status(503).json({ error: 'set VIEWER_TOKEN_BIND_IP=true' });
 
     const eventId = String(req.body?.eventId || '').trim();
-    const ip = String(req.body?.ip || '').trim().replace(/^::ffff:/, '');
     const ttl = Number(req.body?.ttl) || 7200;
     if (!TABLE_ID.test(eventId)) return res.status(400).json({ error: 'unknown table' });
-    if (!isPublicIp(ip)) return res.status(400).json({ error: 'ip must be a public address' });
     if (!Number.isFinite(ttl) || ttl < 60 || ttl > 86400) {
       return res.status(400).json({ error: 'ttl must be between 60 and 86400 seconds' });
+    }
+
+    let ip = '';
+    if (config.viewer.bindIp) {
+      ip = String(req.body?.ip || '').trim().replace(/^::ffff:/, '');
+      if (!isPublicIp(ip)) return res.status(400).json({ error: 'ip must be a public address' });
     }
 
     const token = signViewerToken(config.viewer.tokenSecret, { ttlSec: ttl, ip });
     const exp = Number(token.split('.')[0]);
     const url = `${watchOrigin()}/watch/${encodeURIComponent(eventId)}?token=${encodeURIComponent(token)}`;
-    console.log(`[watch-link] ${eventId} for ${ip} until ${new Date(exp * 1000).toISOString()}`);
-    res.json({ url, expires: new Date(exp * 1000).toISOString(), ip, eventId });
+    console.log(`[watch-link] ${eventId}${ip ? ` for ${ip}` : ''} until ${new Date(exp * 1000).toISOString()}`);
+    const body = { url, expires: new Date(exp * 1000).toISOString(), eventId };
+    if (ip) body.ip = ip;
+    res.json(body);
   });
 
   app.get('/api/video/:eventId', (req, res) => {
