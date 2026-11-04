@@ -88,7 +88,7 @@ export function updateSettings(patch) {
     next.allowedCountries = cleanList(patch.allowedCountries, /^[a-z]{2}$/).map((c) => c.toUpperCase());
   }
   if ('allowedEmbedDomains' in patch) {
-    next.allowedEmbedDomains = cleanList(patch.allowedEmbedDomains, /^(\*\.)?[a-z0-9.-]+(:\d+)?$/);
+    next.allowedEmbedDomains = cleanList(patch.allowedEmbedDomains, /^(\*|(\*\.)?[a-z0-9.-]+(:\d+)?)$/);
   }
   if ('ipAllowlist' in patch) {
     next.ipAllowlist = cleanList(patch.ipAllowlist, /^[0-9a-f.:]+$/);

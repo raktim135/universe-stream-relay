@@ -221,7 +221,7 @@ export function dashboardPage({ nonce, retentionDays }) {
         '<h2>Limits</h2><div class="grid2">' + LIMITS.map(([k, name]) =>
           '<div><label class="f" for="l_' + k + '">' + esc(name) + '</label><input type="number" min="1" id="l_' + k + '" data-limit="' + k + '" value="' + esc(s.limits[k]) + '"></div>').join('') + '</div>' +
         '<h2>Lists (one per line)</h2><div class="grid2">' +
-        '<div><label class="f" for="embed">Sites allowed to embed the player (example.com also allows its subdomains; empty = any site in dev, own site only in production)</label><textarea id="embed">' + esc(s.allowedEmbedDomains.join('\\n')) + '</textarea></div>' +
+        '<div><label class="f" for="embed">Sites allowed to embed the player. One host per line. example.com also allows its subdomains. * means any site. The host must be the page that directly wraps the player, not only the top site. Empty = any site in dev, own site only in production.</label><textarea id="embed">' + esc(s.allowedEmbedDomains.join('\\n')) + '</textarea></div>' +
         '<div><label class="f" for="countries">Allowed countries (2-letter codes)</label><textarea id="countries">' + esc(s.allowedCountries.join('\\n')) + '</textarea></div>' +
         '<div><label class="f" for="allow">IP allowlist (never flagged or blocked)</label><textarea id="allow">' + esc(s.ipAllowlist.join('\\n')) + '</textarea></div>' +
         '</div><p><button class="primary" id="save">Save settings</button></p>';

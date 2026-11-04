@@ -50,6 +50,7 @@ function streamUrls(eventId, token) {
 function frameAncestors() {
   const domains = getSettings().allowedEmbedDomains;
   if (!domains.length) return config.production ? "'self'" : null; // dev: anyone
+  if (domains.includes('*')) return '*'; // any site may embed
   const sources = domains.flatMap((d) => (d.startsWith('*.') ? [`https://${d}`] : [`https://${d}`, `https://*.${d}`]));
   if (!config.production) sources.push('http://localhost:*', 'http://127.0.0.1:*');
   return ["'self'", ...sources].join(' ');
@@ -94,6 +95,7 @@ function embedDenied(req) {
   const self = String(req.hostname || '').toLowerCase();
   if (host === self || (self && host.endsWith('.' + self))) return false;
   const domains = getSettings().allowedEmbedDomains.map((d) => d.toLowerCase().replace(/^\*\./, ''));
+  if (domains.includes('*')) return false;
   if (!domains.length) return config.production;
   return !domains.some((d) => host === d || host.endsWith('.' + d));
 }
