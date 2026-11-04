@@ -86,6 +86,13 @@ export const config = {
     bindIp: bool('VIEWER_TOKEN_BIND_IP', false),
   },
 
+  // POST /api/watch-link. Empty key = the endpoint is off.
+  watchLink: {
+    apiKey: process.env.WATCH_LINK_KEY || '',
+    // Origin used in the returned URL. Default: the public MediaMTX origin.
+    publicBase: trimSlash(process.env.PUBLIC_BASE_URL || ''),
+  },
+
   admin: {
     username: process.env.ADMIN_USERNAME || 'admin',
     // Empty = dashboard and admin API disabled.

@@ -1,6 +1,7 @@
 // HTTP API for our clients, MediaMTX's auth hook and the admin area.
 //
 //   GET  /health                  -> { ok } (for uptime checks; details are in /admin)
+//   POST /api/watch-link          -> { url } for one table, locked to one IP
 //   GET  /api/video/:eventId      -> { playUrl, whepUrl, hlsUrl } and starts the table
 //   GET  /watch/:eventId          -> ready-made player page (iframe it)
 //   POST /internal/mediamtx/auth  -> MediaMTX auth hook (localhost only)
@@ -10,11 +11,13 @@
 
 import express from 'express';
 import cors from 'cors';
+import { isIP } from 'node:net';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { config } from '../config.js';
 import { getSettings } from '../settings.js';
 import { relays } from '../relay/relayManager.js';
 import { authHook, TABLE_ID } from '../mediamtx/authHook.js';
-import { verifyViewerToken } from '../viewerToken.js';
+import { signViewerToken, verifyViewerToken } from '../viewerToken.js';
 import { adminRouter } from '../admin/routes.js';
 import { watchPage } from './watchPage.js';
 
@@ -50,6 +53,33 @@ function frameAncestors() {
   return ["'self'", ...sources].join(' ');
 }
 
+function watchOrigin() {
+  if (config.watchLink.publicBase) return config.watchLink.publicBase;
+  const origin = new URL(config.mediamtx.publicWebrtcUrl).origin;
+  if (/localhost|127\.0\.0\.1/.test(origin)) return `http://localhost:${config.port}`;
+  return origin;
+}
+
+// An address nginx will never see from a real viewer. Private and loopback
+// links would not play, so they are refused here.
+function isPublicIp(ip) {
+  const kind = isIP(ip);
+  if (kind === 4) {
+    const [a, b] = ip.split('.').map(Number);
+    if (a === 0 || a === 10 || a === 127 || a >= 224) return false;
+    if (a === 169 && b === 254) return false;
+    if (a === 172 && b >= 16 && b <= 31) return false;
+    if (a === 192 && b === 168) return false;
+    return true;
+  }
+  if (kind === 6) {
+    const s = ip.toLowerCase();
+    if (s === '::1' || s.startsWith('fe80:') || s.startsWith('fc') || s.startsWith('fd')) return false;
+    return true;
+  }
+  return false;
+}
+
 export function createApp() {
   const app = express();
   app.disable('x-powered-by');
@@ -74,6 +104,34 @@ export function createApp() {
   });
 
   app.get('/health', (_req, res) => res.json({ ok: true }));
+
+  // The other app sends a table and the viewer's public IP. We return the
+  // watch URL. The key is not the viewer token secret.
+  app.post('/api/watch-link', express.json({ limit: '4kb' }), (req, res) => {
+    const key = config.watchLink.apiKey;
+    if (key.length < 16) return res.status(404).json({ error: 'watch links are disabled' });
+    const presented = String(req.get('authorization') || '').replace(/^Bearer\s+/i, '').trim();
+    const a = createHash('sha256').update(key).digest();
+    const b = createHash('sha256').update(presented).digest();
+    if (!presented || !timingSafeEqual(a, b)) return res.status(401).json({ error: 'unauthorized' });
+    if (!config.viewer.tokenSecret) return res.status(503).json({ error: 'viewer tokens are not configured' });
+    if (!config.viewer.bindIp) return res.status(503).json({ error: 'set VIEWER_TOKEN_BIND_IP=true' });
+
+    const eventId = String(req.body?.eventId || '').trim();
+    const ip = String(req.body?.ip || '').trim().replace(/^::ffff:/, '');
+    const ttl = Number(req.body?.ttl) || 7200;
+    if (!TABLE_ID.test(eventId)) return res.status(400).json({ error: 'unknown table' });
+    if (!isPublicIp(ip)) return res.status(400).json({ error: 'ip must be a public address' });
+    if (!Number.isFinite(ttl) || ttl < 60 || ttl > 86400) {
+      return res.status(400).json({ error: 'ttl must be between 60 and 86400 seconds' });
+    }
+
+    const token = signViewerToken(config.viewer.tokenSecret, { ttlSec: ttl, ip });
+    const exp = Number(token.split('.')[0]);
+    const url = `${watchOrigin()}/watch/${encodeURIComponent(eventId)}?token=${encodeURIComponent(token)}`;
+    console.log(`[watch-link] ${eventId} for ${ip} until ${new Date(exp * 1000).toISOString()}`);
+    res.json({ url, expires: new Date(exp * 1000).toISOString(), ip, eventId });
+  });
 
   app.get('/api/video/:eventId', (req, res) => {
     if (!viewerAllowed(req)) return res.status(401).json({ error: 'invalid viewer token' });
