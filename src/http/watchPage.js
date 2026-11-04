@@ -85,8 +85,14 @@ export function watchPage({ eventId, whepUrl, hlsUrl, token, mode, denied = fals
         const target = CFG.embedReturn || 'https://www.google.com';
         try { window.top.location.replace(target); } catch { location.replace(target); }
       };
-      const docked = () => Math.abs(window.outerWidth - window.innerWidth) > 200
-        || Math.abs(window.outerHeight - window.innerHeight) > 200;
+      let inFrame = false;
+      try { inFrame = window.top !== window.self; } catch { inFrame = true; }
+      // outer/inner is the browser window versus this frame. In an iframe that
+      // gap is the page around the player, so it only counts on a direct visit.
+      const docked = () => !inFrame && (
+        Math.abs(window.outerWidth - window.innerWidth) > 200
+        || Math.abs(window.outerHeight - window.innerHeight) > 200
+      );
       const check = () => {
         if (docked()) leave();
         const mark = new Image();
