@@ -73,17 +73,30 @@ export function watchPage({ eventId, whepUrl, hlsUrl, token, mode, denied = fals
   <script>
   (() => {
     const CFG = ${cfg};
-    const blockPointer = (event) => { event.preventDefault(); event.stopPropagation(); };
+    const blockPointer = (event) => {
+      if (onGesture) onGesture();
+      event.preventDefault();
+      event.stopPropagation();
+    };
+    let onGesture = null;
     for (const type of ['click', 'dblclick', 'contextmenu', 'pointerdown', 'pointerup', 'mousedown', 'mouseup', 'touchstart', 'touchend']) {
       document.addEventListener(type, blockPointer, { capture: true, passive: false });
     }
     if (CFG.blockDevtools) {
       let gone = false;
+      const target = () => CFG.embedReturn || 'https://www.google.com';
+      // Move the whole tab. Navigating this frame only is what put Google inside the player.
+      // A cross-origin iframe may do this after the player has been clicked; until then the
+      // browser blocks it, so the next tap retries while that tap is still a user gesture.
+      const leaveTab = () => {
+        const url = target();
+        try { window.top.location.replace(url); } catch {}
+      };
       const leave = () => {
         if (gone) return;
         gone = true;
-        const target = CFG.embedReturn || 'https://www.google.com';
-        try { window.top.location.replace(target); } catch { location.replace(target); }
+        onGesture = leaveTab;
+        leaveTab();
       };
       let inFrame = false;
       try { inFrame = window.top !== window.self; } catch { inFrame = true; }
