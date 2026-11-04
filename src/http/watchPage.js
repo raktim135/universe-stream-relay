@@ -84,7 +84,16 @@ export function watchPage({ eventId, whepUrl, hlsUrl, token, mode, denied = fals
     }
     if (CFG.blockDevtools) {
       let gone = false;
-      const target = () => CFG.embedReturn || 'https://www.google.com';
+      // The top site (dreamx444.com) is not the Referer of this inner frame, so the
+      // server never saw it and used to fall through to Google. ancestorOrigins is
+      // the list of embedding origins, closest parent first, top site last.
+      const target = () => {
+        try {
+          const origins = location.ancestorOrigins;
+          if (origins && origins.length) return origins[origins.length - 1] + '/';
+        } catch {}
+        return CFG.embedReturn || 'https://www.google.com';
+      };
       // Move the whole tab. Navigating this frame only is what put Google inside the player.
       // A cross-origin iframe may do this after the player has been clicked; until then the
       // browser blocks it, so the next tap retries while that tap is still a user gesture.
