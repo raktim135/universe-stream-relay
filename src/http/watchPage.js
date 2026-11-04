@@ -32,14 +32,15 @@ export function watchPage({ eventId, whepUrl, hlsUrl, token, mode, denied = fals
     #loader img { width: min(280px, 70vw); height: auto; background: #000; }
     #denied .card { max-width: 420px; margin: 24px; padding: 28px 32px; text-align: center; border: 1px solid rgba(255,255,255,.14); border-radius: 16px; background: #141414; box-shadow: 0 16px 40px rgba(0,0,0,.45); }
     #denied p { margin: 0; font-size: 20px; font-weight: 600; letter-spacing: .01em; }
-    #sound { position: absolute; z-index: 3; right: 12px; bottom: 12px; padding: 8px 14px; border: 0; border-radius: 6px; background: rgba(0,0,0,.72); color: #fff; font: inherit; cursor: pointer; }
+    #sound { position: absolute; z-index: 3; right: 12px; bottom: 12px; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 22px; background: rgba(0,0,0,.72); color: #fff; cursor: pointer; display: grid; place-items: center; }
+    #sound svg { width: 22px; height: 22px; display: block; }
   </style>
 </head>
 <body>
   <video id="v" autoplay muted playsinline></video>
   <div id="loader"${denied ? ' hidden' : ''}><img src="/img/loader.gif" alt=""></div>
   <div id="denied"${denied ? '' : ' hidden'}><div class="card"><p>${DENIED}</p></div></div>
-  <button id="sound" type="button" hidden>Unmute</button>
+  <button id="sound" type="button" hidden aria-label="Unmute"></button>
   <script>
   (() => {
     const CFG = ${cfg};
@@ -65,7 +66,12 @@ export function watchPage({ eventId, whepUrl, hlsUrl, token, mode, denied = fals
     let onScreen = true;
 
     const showLoader = () => { denied.hidden = true; loader.hidden = false; sound.hidden = true; };
-    const paintSound = () => { sound.textContent = video.muted ? 'Unmute' : 'Mute'; };
+    const ICON_MUTED = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5L6 9H3v6h3l5 4V5z"/><path d="M22 9l-6 6M16 9l6 6"/></svg>';
+    const ICON_ON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5L6 9H3v6h3l5 4V5z"/><path d="M16 9a5 5 0 010 6M19 7a8 8 0 010 10"/></svg>';
+    const paintSound = () => {
+      sound.innerHTML = video.muted ? ICON_MUTED : ICON_ON;
+      sound.setAttribute('aria-label', video.muted ? 'Unmute' : 'Mute');
+    };
     const refuse = () => {
       teardown();
       running = false;
