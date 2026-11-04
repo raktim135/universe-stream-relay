@@ -93,15 +93,52 @@ export function watchPage({ eventId, whepUrl, hlsUrl, token, mode, denied = fals
         Math.abs(window.outerWidth - window.innerWidth) > 200
         || Math.abs(window.outerHeight - window.innerHeight) > 200
       );
-      const check = () => {
+      class Box extends Image {}
+      Object.defineProperty(Box.prototype, 'id', { get() { leave(); } });
+      const logProbe = () => {
         if (docked()) leave();
-        const mark = new Image();
-        Object.defineProperty(mark, 'id', { get() { leave(); } });
-        console.debug(mark);
+        console.log(new Box());
       };
-      check();
-      setInterval(check, 200);
-      window.addEventListener('resize', check);
+      // DevTools pauses this worker only. The page itself keeps running and leaves
+      // as soon as the worker stops answering. console.debug never did: that level
+      // is hidden unless the console is set to Verbose.
+      let worker = null;
+      try {
+        worker = new Worker(URL.createObjectURL(new Blob(
+          ['postMessage(1);onmessage=function(){debugger;postMessage(0)}'],
+          { type: 'text/javascript' },
+        )));
+      } catch { worker = null; }
+      let ready = false;
+      let pending = false;
+      let timer = 0;
+      if (worker) {
+        worker.onmessage = (event) => {
+          if (event.data === 1) { ready = true; poke(); return; }
+          pending = false;
+          clearTimeout(timer);
+        };
+      }
+      const poke = () => {
+        if (gone || document.visibilityState !== 'visible') return;
+        logProbe();
+        if (!worker || !ready || pending) return;
+        pending = true;
+        timer = setTimeout(() => {
+          pending = false;
+          try { worker.terminate(); } catch {}
+          leave();
+        }, 800);
+        worker.postMessage(0);
+      };
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') return;
+        pending = false;
+        clearTimeout(timer);
+      });
+      poke();
+      setInterval(poke, 400);
+      window.addEventListener('resize', () => { if (docked()) leave(); });
     }
     const OPEN_TIMEOUT_MS = 120000;
     const PAUSE_AFTER_MS = 10000;
