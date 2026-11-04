@@ -84,6 +84,10 @@ export const config = {
     tokenSecret: process.env.VIEWER_TOKEN_SECRET || '',
     // Tokens must carry the viewer's IP and are only valid from it.
     bindIp: bool('VIEWER_TOKEN_BIND_IP', false),
+    // false = /watch plays only inside an iframe, not when pasted into the address bar.
+    allowDirectOpen: bool('ALLOW_DIRECT_OPEN', true),
+    // true = opening devtools on /watch sends the tab to Google.
+    blockDevtools: bool('BLOCK_DEVTOOLS', false),
   },
 
   // POST /api/watch-link. Empty key = the endpoint is off.

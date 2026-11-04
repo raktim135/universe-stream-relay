@@ -5,8 +5,7 @@
 //   - After repeated WebRTC failures (UDP blocked etc.) falls back to LL-HLS.
 //   - Stops streaming when the tab is hidden or the player is off screen for
 //     a while, and resumes when it is back, so idle viewers cost no bandwidth.
-//   - Starts muted (browser autoplay rules); shows a tap-for-sound button
-//     when the table has audio.
+//   - Starts muted so the browser allows autoplay. No mute control is shown.
 
 const HLS_JS = 'https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js';
 
@@ -16,8 +15,8 @@ function inlineJson(value) {
 
 const DENIED = 'You are not authorize!';
 
-export function watchPage({ eventId, whepUrl, hlsUrl, token, mode, denied = false }) {
-  const cfg = inlineJson({ whepUrl, hlsUrl, token, mode, hlsJs: HLS_JS, denied });
+export function watchPage({ eventId, whepUrl, hlsUrl, token, mode, denied = false, blockDevtools = false }) {
+  const cfg = inlineJson({ whepUrl, hlsUrl, token, mode, hlsJs: HLS_JS, denied, blockDevtools });
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -28,22 +27,36 @@ export function watchPage({ eventId, whepUrl, hlsUrl, token, mode, denied = fals
     html, body { margin: 0; height: 100%; background: #000; color: #eee; font: 16px/1.4 system-ui, sans-serif; overflow: hidden; }
     video { width: 100%; height: 100%; background: #000; object-fit: contain; }
     #loader, #denied { position: absolute; inset: 0; display: grid; place-items: center; background: #000; }
-    #loader[hidden], #denied[hidden], #sound[hidden] { display: none; }
+    #loader[hidden], #denied[hidden] { display: none; }
     #loader img { width: min(280px, 70vw); height: auto; background: #000; }
     #denied .card { max-width: 420px; margin: 24px; padding: 28px 32px; text-align: center; border: 1px solid rgba(255,255,255,.14); border-radius: 16px; background: #141414; box-shadow: 0 16px 40px rgba(0,0,0,.45); }
     #denied p { margin: 0; font-size: 20px; font-weight: 600; letter-spacing: .01em; }
-    #sound { position: absolute; z-index: 3; right: 12px; bottom: 12px; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 22px; background: rgba(0,0,0,.72); color: #fff; cursor: pointer; display: grid; place-items: center; }
-    #sound svg { width: 22px; height: 22px; display: block; }
   </style>
 </head>
 <body>
   <video id="v" autoplay muted playsinline></video>
   <div id="loader"${denied ? ' hidden' : ''}><img src="/img/loader.gif" alt=""></div>
   <div id="denied"${denied ? '' : ' hidden'}><div class="card"><p>${DENIED}</p></div></div>
-  <button id="sound" type="button" hidden aria-label="Unmute"></button>
   <script>
   (() => {
     const CFG = ${cfg};
+    if (CFG.blockDevtools) {
+      const leave = () => { location.replace('https://www.google.com'); };
+      const docked = () => Math.abs(window.outerWidth - window.innerWidth) > 200
+        || Math.abs(window.outerHeight - window.innerHeight) > 200;
+      const mark = new Image();
+      let trap = false;
+      Object.defineProperty(mark, 'id', { get() { trap = true; } });
+      const check = () => {
+        trap = false;
+        console.debug(mark);
+        const started = performance.now();
+        debugger;
+        if (docked() || trap || performance.now() - started > 100) leave();
+      };
+      check();
+      setInterval(check, 1000);
+    }
     const OPEN_TIMEOUT_MS = 120000;
     const PAUSE_AFTER_MS = 10000;
     const MAX_WEBRTC_FAILURES = 3;
@@ -51,7 +64,6 @@ export function watchPage({ eventId, whepUrl, hlsUrl, token, mode, denied = fals
     const video = document.getElementById('v');
     const loader = document.getElementById('loader');
     const denied = document.getElementById('denied');
-    const sound = document.getElementById('sound');
     const auth = CFG.token ? { Authorization: 'Bearer ' + CFG.token } : {};
 
     let pc = null;
@@ -65,31 +77,15 @@ export function watchPage({ eventId, whepUrl, hlsUrl, token, mode, denied = fals
     let openingSince = Date.now();
     let onScreen = true;
 
-    const showLoader = () => { denied.hidden = true; loader.hidden = false; sound.hidden = true; };
-    const ICON_MUTED = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5L6 9H3v6h3l5 4V5z"/><path d="M22 9l-6 6M16 9l6 6"/></svg>';
-    const ICON_ON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5L6 9H3v6h3l5 4V5z"/><path d="M16 9a5 5 0 010 6M19 7a8 8 0 010 10"/></svg>';
-    const paintSound = () => {
-      sound.innerHTML = video.muted ? ICON_MUTED : ICON_ON;
-      sound.setAttribute('aria-label', video.muted ? 'Unmute' : 'Mute');
-    };
+    const showLoader = () => { denied.hidden = true; loader.hidden = false; };
     const refuse = () => {
       teardown();
       running = false;
       clearTimeout(retryTimer);
       loader.hidden = true;
-      sound.hidden = true;
       denied.hidden = false;
     };
-    video.addEventListener('playing', () => {
-      loader.hidden = true;
-      if (denied.hidden) { sound.hidden = false; paintSound(); }
-    });
-
-    sound.addEventListener('click', () => {
-      video.muted = !video.muted;
-      if (!video.muted) video.play().catch(() => {});
-      paintSound();
-    });
+    video.addEventListener('playing', () => { loader.hidden = true; });
 
     function useHls() {
       return CFG.mode === 'hls' || webrtcFailures >= MAX_WEBRTC_FAILURES || !window.RTCPeerConnection;

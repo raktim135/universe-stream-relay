@@ -55,10 +55,16 @@ function frameAncestors() {
   return ["'self'", ...sources].join(' ');
 }
 
-// A cross-site iframe whose site is not in the embed list. A direct visit is allowed.
-function embedDenied(req) {
+function isFrame(req) {
   const dest = (req.get('sec-fetch-dest') || '').toLowerCase();
-  if (dest !== 'iframe' && dest !== 'frame' && dest !== 'embed' && dest !== 'object') return false;
+  return dest === 'iframe' || dest === 'frame' || dest === 'embed' || dest === 'object';
+}
+
+// A cross-site iframe whose site is not in the embed list. A direct visit is
+// allowed unless ALLOW_DIRECT_OPEN is false.
+function embedDenied(req) {
+  if (!config.viewer.allowDirectOpen && !isFrame(req)) return true;
+  if (!isFrame(req)) return false;
   const referer = req.get('referer') || '';
   if (!referer) return false;
   let host = '';
@@ -162,14 +168,14 @@ export function createApp() {
     const token = viewerToken(req);
     res.set({ 'Referrer-Policy': 'no-referrer', 'Cache-Control': 'no-store' });
     if (!viewerAllowed(req) || embedDenied(req)) {
-      return res.status(403).type('html').send(watchPage({ eventId, denied: true }));
+      return res.status(403).type('html').send(watchPage({ eventId, denied: true, blockDevtools: config.viewer.blockDevtools }));
     }
     relays.want(eventId); // start opening while the page loads
     const ancestors = frameAncestors();
     if (ancestors) res.set('Content-Security-Policy', `frame-ancestors ${ancestors}`);
     const { whepUrl, hlsUrl } = streamUrls(eventId, token);
     const mode = req.query.mode === 'hls' ? 'hls' : 'webrtc';
-    res.type('html').send(watchPage({ eventId, whepUrl, hlsUrl, token, mode }));
+    res.type('html').send(watchPage({ eventId, whepUrl, hlsUrl, token, mode, blockDevtools: config.viewer.blockDevtools }));
   });
 
   return app;
