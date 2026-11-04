@@ -41,21 +41,23 @@ export function watchPage({ eventId, whepUrl, hlsUrl, token, mode, denied = fals
   (() => {
     const CFG = ${cfg};
     if (CFG.blockDevtools) {
-      const leave = () => { location.replace('https://www.google.com'); };
+      let gone = false;
+      const leave = () => {
+        if (gone) return;
+        gone = true;
+        location.replace('https://www.google.com');
+      };
       const docked = () => Math.abs(window.outerWidth - window.innerWidth) > 200
         || Math.abs(window.outerHeight - window.innerHeight) > 200;
-      const mark = new Image();
-      let trap = false;
-      Object.defineProperty(mark, 'id', { get() { trap = true; } });
       const check = () => {
-        trap = false;
+        if (docked()) leave();
+        const mark = new Image();
+        Object.defineProperty(mark, 'id', { get() { leave(); } });
         console.debug(mark);
-        const started = performance.now();
-        debugger;
-        if (docked() || trap || performance.now() - started > 100) leave();
       };
       check();
-      setInterval(check, 1000);
+      setInterval(check, 200);
+      window.addEventListener('resize', check);
     }
     const OPEN_TIMEOUT_MS = 120000;
     const PAUSE_AFTER_MS = 10000;
