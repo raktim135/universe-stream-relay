@@ -60,6 +60,15 @@ function isFrame(req) {
   return dest === 'iframe' || dest === 'frame' || dest === 'embed' || dest === 'object';
 }
 
+// Browsers send these on a real page open (address bar or iframe). curl and
+// Postman do not, so they get an empty response and do not start the table.
+function isBrowserPage(req) {
+  const dest = (req.get('sec-fetch-dest') || '').toLowerCase();
+  const mode = (req.get('sec-fetch-mode') || '').toLowerCase();
+  if (mode !== 'navigate') return false;
+  return dest === 'document' || isFrame(req);
+}
+
 // A cross-site iframe whose site is not in the embed list. A direct visit is
 // allowed unless ALLOW_DIRECT_OPEN is false.
 function embedDenied(req) {
@@ -167,6 +176,7 @@ export function createApp() {
     const { eventId } = req.params;
     const token = viewerToken(req);
     res.set({ 'Referrer-Policy': 'no-referrer', 'Cache-Control': 'no-store' });
+    if (!isBrowserPage(req)) return res.status(404).end();
     if (!viewerAllowed(req) || embedDenied(req)) {
       return res.status(403).type('html').send(watchPage({ eventId, denied: true, blockDevtools: config.viewer.blockDevtools }));
     }

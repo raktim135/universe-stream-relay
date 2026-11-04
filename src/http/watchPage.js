@@ -26,17 +26,48 @@ export function watchPage({ eventId, whepUrl, hlsUrl, token, mode, denied = fals
   <style>
     html, body { margin: 0; height: 100%; background: #000; color: #eee; font: 16px/1.4 system-ui, sans-serif; overflow: hidden; }
     video { width: 100%; height: 100%; background: #000; object-fit: contain; }
-    #loader, #denied { position: absolute; inset: 0; display: grid; place-items: center; background: #000; }
+    #loader, #denied { position: absolute; inset: 0; display: grid; place-items: center; }
+    #loader { background: #000; }
     #loader[hidden], #denied[hidden] { display: none; }
     #loader img { width: min(280px, 70vw); height: auto; background: #000; }
-    #denied .card { max-width: 420px; margin: 24px; padding: 28px 32px; text-align: center; border: 1px solid rgba(255,255,255,.14); border-radius: 16px; background: #141414; box-shadow: 0 16px 40px rgba(0,0,0,.45); }
-    #denied p { margin: 0; font-size: 20px; font-weight: 600; letter-spacing: .01em; }
+    #denied {
+      background:
+        radial-gradient(900px 480px at 50% 0%, rgba(176, 62, 92, .42), transparent 58%),
+        radial-gradient(720px 420px at 100% 100%, rgba(196, 150, 72, .28), transparent 52%),
+        linear-gradient(165deg, #241018 0%, #100c12 46%, #141820 100%);
+    }
+    #denied .card {
+      width: min(440px, calc(100% - 48px));
+      margin: 24px;
+      padding: 40px 36px 34px;
+      text-align: center;
+      border: 1px solid rgba(230, 198, 138, .72);
+      border-radius: 22px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.02)),
+        rgba(22, 14, 18, .9);
+      box-shadow:
+        0 0 0 6px rgba(230, 198, 138, .08),
+        0 0 0 1px rgba(0,0,0,.55),
+        inset 0 1px 0 rgba(255,255,255,.16),
+        0 28px 60px rgba(0,0,0,.5);
+    }
+    #denied .rule {
+      display: block;
+      width: 64px;
+      height: 2px;
+      margin: 0 auto 20px;
+      border: 0;
+      border-radius: 2px;
+      background: linear-gradient(90deg, transparent, #f0d7a2, transparent);
+    }
+    #denied p { margin: 0; font-size: 22px; font-weight: 650; letter-spacing: .01em; color: #f7f1e8; }
   </style>
 </head>
 <body>
   <video id="v" autoplay muted playsinline></video>
   <div id="loader"${denied ? ' hidden' : ''}><img src="/img/loader.gif" alt=""></div>
-  <div id="denied"${denied ? '' : ' hidden'}><div class="card"><p>${DENIED}</p></div></div>
+  <div id="denied"${denied ? '' : ' hidden'}><div class="card"><span class="rule"></span><p>${DENIED}</p></div></div>
   <script>
   (() => {
     const CFG = ${cfg};
