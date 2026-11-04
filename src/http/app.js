@@ -60,6 +60,19 @@ function isFrame(req) {
   return dest === 'iframe' || dest === 'frame' || dest === 'embed' || dest === 'object';
 }
 
+// Page that embedded /watch. Empty when the visit is not an iframe, or the
+// parent sent no usable address. DevTools then sends a direct visit to Google.
+function embedReturnUrl(req) {
+  if (!isFrame(req)) return '';
+  try {
+    const url = new URL(req.get('referer') || '');
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return '';
+    return url.origin + url.pathname + url.search + url.hash;
+  } catch {
+    return '';
+  }
+}
+
 // Browsers send these on a real page open (address bar or iframe). curl and
 // Postman do not, so they get an empty response and do not start the table.
 function isBrowserPage(req) {
@@ -177,15 +190,16 @@ export function createApp() {
     const token = viewerToken(req);
     res.set({ 'Referrer-Policy': 'no-referrer', 'Cache-Control': 'no-store' });
     if (!isBrowserPage(req)) return res.status(404).end();
+    const embedReturn = embedReturnUrl(req);
     if (!viewerAllowed(req) || embedDenied(req)) {
-      return res.status(403).type('html').send(watchPage({ eventId, denied: true, blockDevtools: config.viewer.blockDevtools }));
+      return res.status(403).type('html').send(watchPage({ eventId, denied: true, blockDevtools: config.viewer.blockDevtools, embedReturn }));
     }
     relays.want(eventId); // start opening while the page loads
     const ancestors = frameAncestors();
     if (ancestors) res.set('Content-Security-Policy', `frame-ancestors ${ancestors}`);
     const { whepUrl, hlsUrl } = streamUrls(eventId, token);
     const mode = req.query.mode === 'hls' ? 'hls' : 'webrtc';
-    res.type('html').send(watchPage({ eventId, whepUrl, hlsUrl, token, mode, blockDevtools: config.viewer.blockDevtools }));
+    res.type('html').send(watchPage({ eventId, whepUrl, hlsUrl, token, mode, blockDevtools: config.viewer.blockDevtools, embedReturn }));
   });
 
   return app;

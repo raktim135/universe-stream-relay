@@ -86,7 +86,8 @@ export const config = {
     bindIp: bool('VIEWER_TOKEN_BIND_IP', false),
     // false = /watch plays only inside an iframe, not when pasted into the address bar.
     allowDirectOpen: bool('ALLOW_DIRECT_OPEN', true),
-    // true = opening devtools on /watch sends the tab to Google.
+    // true = opening devtools on /watch leaves the page.
+    // An iframe goes back to the site that embedded it; a direct visit goes to Google.
     blockDevtools: bool('BLOCK_DEVTOOLS', false),
   },
 

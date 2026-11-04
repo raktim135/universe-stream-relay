@@ -15,8 +15,8 @@ function inlineJson(value) {
 
 const DENIED = 'You are not authorize!';
 
-export function watchPage({ eventId, whepUrl, hlsUrl, token, mode, denied = false, blockDevtools = false }) {
-  const cfg = inlineJson({ whepUrl, hlsUrl, token, mode, hlsJs: HLS_JS, denied, blockDevtools });
+export function watchPage({ eventId, whepUrl, hlsUrl, token, mode, denied = false, blockDevtools = false, embedReturn = '' }) {
+  const cfg = inlineJson({ whepUrl, hlsUrl, token, mode, hlsJs: HLS_JS, denied, blockDevtools, embedReturn });
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -82,7 +82,8 @@ export function watchPage({ eventId, whepUrl, hlsUrl, token, mode, denied = fals
       const leave = () => {
         if (gone) return;
         gone = true;
-        location.replace('https://www.google.com');
+        const target = CFG.embedReturn || 'https://www.google.com';
+        try { window.top.location.replace(target); } catch { location.replace(target); }
       };
       const docked = () => Math.abs(window.outerWidth - window.innerWidth) > 200
         || Math.abs(window.outerHeight - window.innerHeight) > 200;
