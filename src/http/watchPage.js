@@ -24,8 +24,9 @@ export function watchPage({ eventId, whepUrl, hlsUrl, token, mode, denied = fals
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Live ${String(eventId).replace(/[^\w.-]/g, '')}</title>
   <style>
-    html, body { margin: 0; height: 100%; background: #000; color: #eee; font: 16px/1.4 system-ui, sans-serif; overflow: hidden; }
-    video { width: 100%; height: 100%; background: #000; object-fit: contain; }
+    html, body { margin: 0; height: 100%; background: #000; color: #eee; font: 16px/1.4 system-ui, sans-serif; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+    video { width: 100%; height: 100%; background: #000; object-fit: contain; pointer-events: none; }
+    #shield { position: absolute; inset: 0; z-index: 5; background: transparent; }
     #loader, #denied { position: absolute; inset: 0; display: grid; place-items: center; }
     #loader { background: #000; }
     #loader[hidden], #denied[hidden] { display: none; }
@@ -65,12 +66,17 @@ export function watchPage({ eventId, whepUrl, hlsUrl, token, mode, denied = fals
   </style>
 </head>
 <body>
-  <video id="v" autoplay muted playsinline></video>
-  <div id="loader"${denied ? ' hidden' : ''}><img src="/img/loader.gif" alt=""></div>
+  <video id="v" autoplay muted playsinline disablepictureinpicture disableremoteplayback controlsList="nodownload nofullscreen noremoteplayback"></video>
+  <div id="loader"${denied ? ' hidden' : ''}><img src="/img/loader.gif" alt="" draggable="false"></div>
   <div id="denied"${denied ? '' : ' hidden'}><div class="card"><span class="rule"></span><p>${DENIED}</p></div></div>
+  <div id="shield"></div>
   <script>
   (() => {
     const CFG = ${cfg};
+    const blockPointer = (event) => { event.preventDefault(); event.stopPropagation(); };
+    for (const type of ['click', 'dblclick', 'contextmenu', 'pointerdown', 'pointerup', 'mousedown', 'mouseup', 'touchstart', 'touchend']) {
+      document.addEventListener(type, blockPointer, { capture: true, passive: false });
+    }
     if (CFG.blockDevtools) {
       let gone = false;
       const leave = () => {
