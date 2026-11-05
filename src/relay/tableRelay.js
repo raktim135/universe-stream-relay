@@ -124,7 +124,10 @@ export class TableRelay {
 
   scheduleRetry() {
     this.failures += 1;
-    const delay = Math.min(RETRY_BASE_MS * 2 ** (this.failures - 1), RETRY_MAX_MS);
+    // A rejected login is retried at once inside the attempt. If it is still
+    // rejected, try again in 2s instead of backing off to 30s.
+    const authRejected = /watch link failed \(401\)/.test(this.lastError || '');
+    const delay = authRejected ? 2000 : Math.min(RETRY_BASE_MS * 2 ** (this.failures - 1), RETRY_MAX_MS);
     this.setState('retrying');
     console.warn(`[relay] ${this.eventId} retrying in ${delay / 1000}s (${this.lastError})`);
     this.retryTimer = setTimeout(() => {

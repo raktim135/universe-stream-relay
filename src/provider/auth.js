@@ -8,6 +8,7 @@ import { config } from '../config.js';
 import { apiHeaders } from './browser.js';
 
 let cached = { token: '', expMs: 0 };
+let loginTask = null;
 
 // Decode the exp claim from a JWT without verifying (we don't hold the secret).
 function jwtExpMs(token) {
@@ -42,8 +43,30 @@ async function login() {
   return token;
 }
 
+function loginFresh() {
+  if (!loginTask) {
+    loginTask = login()
+      .then((token) => {
+        cached = { token, expMs: jwtExpMs(token) || Date.now() + 60 * 60 * 1000 };
+        console.log(`[auth] logged in as ${config.brandUsername}; token valid until ${new Date(cached.expMs).toISOString()}`);
+        return cached.token;
+      })
+      .finally(() => {
+        loginTask = null;
+      });
+  }
+  return loginTask;
+}
+
 // Returns a valid token, logging in / refreshing as needed.
-export async function getToken() {
+// forceLogin drops the cached token. A 401 means the brand already rejected it,
+// even when its expiry is still hours away.
+export async function getToken({ forceLogin = false } = {}) {
+  if (forceLogin) {
+    cached = { token: '', expMs: 0 };
+    return loginFresh();
+  }
+
   const now = Date.now();
 
   if (cached.token && now < cached.expMs - 3 * 60 * 1000) {
@@ -59,10 +82,7 @@ export async function getToken() {
     }
   }
 
-  const token = await login();
-  cached = { token, expMs: jwtExpMs(token) || now + 60 * 60 * 1000 };
-  console.log(`[auth] logged in as ${config.brandUsername}; token valid until ${new Date(cached.expMs).toISOString()}`);
-  return cached.token;
+  return loginFresh();
 }
 
 export function invalidateToken() {

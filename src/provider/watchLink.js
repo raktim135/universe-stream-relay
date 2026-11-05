@@ -19,6 +19,31 @@ function playerHeaders(pageUrl) {
   };
 }
 
+async function requestPlayerLink(eventId, token) {
+  const base = config.brandCasinoBase;
+  const res = await fetch(
+    `${base}/casinoapp/exchange/users/streaming/casinoGameWatchLink`,
+    {
+      method: 'POST',
+      headers: {
+        ...apiHeaders(base),
+        Authorization: `Bearer ${token}`,
+        Referer: `${base}/`,
+        'sec-fetch-site': 'same-origin',
+      },
+      body: JSON.stringify({ streamId: eventId, timestamp: Date.now() }),
+      signal: AbortSignal.timeout(15000),
+    }
+  );
+  const json = await res.json().catch(() => ({}));
+  return { res, json, pageUrl: json?.data?.url || '' };
+}
+
+function watchLinkError(eventId, res, json) {
+  const reason = json?.meta?.message || json?.message || json?.error || '';
+  return new Error(`watch link failed (${res.status}) for ${eventId}${reason ? `: ${reason}` : ''}`);
+}
+
 export async function openWatch(eventId) {
   const base = config.brandCasinoBase;
 
@@ -29,28 +54,16 @@ export async function openWatch(eventId) {
   if (pageUrl) {
     console.log(`[watch] ${eventId} using TABLE_WATCH_URLS override`);
   } else {
-    const token = await getToken();
+    let token = await getToken();
     console.log(`[watch] ${eventId} requesting player link`);
-    const res = await fetch(
-      `${base}/casinoapp/exchange/users/streaming/casinoGameWatchLink`,
-      {
-        method: 'POST',
-        headers: {
-          ...apiHeaders(base),
-          Authorization: `Bearer ${token}`,
-          Referer: `${base}/`,
-          'sec-fetch-site': 'same-origin',
-        },
-        body: JSON.stringify({ streamId: eventId, timestamp: Date.now() }),
-        signal: AbortSignal.timeout(15000),
-      }
-    );
-    const json = await res.json().catch(() => ({}));
-    pageUrl = json?.data?.url;
-    if (!res.ok || !pageUrl) {
-      const reason = json?.meta?.message || json?.message || json?.error || '';
-      throw new Error(`watch link failed (${res.status}) for ${eventId}${reason ? `: ${reason}` : ''}`);
+    let got = await requestPlayerLink(eventId, token);
+    if (got.res.status === 401) {
+      console.log(`[watch] ${eventId} login was rejected, signing in again`);
+      token = await getToken({ forceLogin: true });
+      got = await requestPlayerLink(eventId, token);
     }
+    pageUrl = got.pageUrl;
+    if (!got.res.ok || !pageUrl) throw watchLinkError(eventId, got.res, got.json);
   }
   console.log(`[watch] ${eventId} fetching player page`);
 
