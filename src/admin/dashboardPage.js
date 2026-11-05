@@ -65,7 +65,7 @@ export function dashboardPage({ nonce, retentionDays }) {
     <section id="settings"></section>
     <section id="activity"></section>
   </main>
-  <footer>Data kept ${Number(retentionDays)} days. IP data by <a href="https://db-ip.com" rel="noopener">DB-IP</a> (CC BY 4.0).</footer>
+  <footer>Data kept ${Number(retentionDays)} days.</footer>
   <div id="toast"></div>
 
   <script nonce="${nonce}">
